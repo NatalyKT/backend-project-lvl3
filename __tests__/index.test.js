@@ -65,23 +65,7 @@ describe('Expected behavior: page-loader tests without errors', () => {
 });
 
 describe.each([
-  [expectedPath, 'not a dir'],
-  [(path.join('/var', 'lib')), 'permission denied'],
-  [(path.join('path', 'NotExists')), 'file[dir] not exist'],
-])('Output errors', (outputPath, errorText) => {
-  test(`Founded errors: "${errorText}"`, async () => {
-    await expect(loadPage(inputURL, outputPath))
-      .rejects
-      .toThrow(errorText);
-  });
-});
-
-describe.each([
-  // 4xx
   404,
-  410,
-  // 5xx
-  500,
   502,
   504,
 ])('Expected server&network errors', (error) => {
@@ -90,5 +74,17 @@ describe.each([
     await expect(loadPage(errorUrl, tmpDir))
       .rejects
       .toThrow(`${pageURL.origin}`);
+  });
+});
+
+describe.each([
+  [(path.join('/var', 'lib')), 'permission denied'],
+  [(path.join('path', 'NotExists')), 'no such file or directory'],
+  [expectedPath, 'not a directory'],
+])('Output errors', (outputPath, errorText) => {
+  test(`Founded errors: "${errorText}"`, async () => {
+    await expect(loadPage(inputURL, outputPath))
+      .rejects
+      .toThrow(errorText);
   });
 });
