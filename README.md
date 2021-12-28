@@ -36,3 +36,5 @@ Installation:
 
 #### Installation and workflow
 
+[![asciicast](https://asciinema.org/a/L7uyaz1Lmt3yAYSWH7qVG3qmq.svg)](https://asciinema.org/a/L7uyaz1Lmt3yAYSWH7qVG3qmq)
+
