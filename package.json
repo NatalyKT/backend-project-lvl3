@@ -1,10 +1,14 @@
 {
   "name": "@hexlet/code",
   "version": "1.0.0",
-  "description": "[![Actions Status](https://github.com/NatalyKT/backend-project-lvl3/workflows/hexlet-check/badge.svg)](https://github.com/NatalyKT/backend-project-lvl3/actions)",
-  "main": "index.js",
+  "type": "module",
+  "description": "Page Loader: an implementation of the page-loader command line utility",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npx jest"
+  },
+  "bin": {
+    "page-loader": "bin/page_loader.js"
   },
   "repository": {
     "type": "git",
@@ -15,5 +19,30 @@
   "bugs": {
     "url": "https://github.com/NatalyKT/backend-project-lvl3/issues"
   },
-  "homepage": "https://github.com/NatalyKT/backend-project-lvl3#readme"
+  "homepage": "https://github.com/NatalyKT/backend-project-lvl3#readme",
+  "dependencies": {
+    "axios": "^0.24.0",
+    "axios-debug-log": "^0.8.4",
+    "cheerio": "^1.0.0-rc.10",
+    "commander": "^8.3.0",
+    "debug": "^4.3.3",
+    "eslint-plugin-jest": "^25.3.0",
+    "fs": "^0.0.1-security",
+    "listr": "^0.14.2",
+    "lodash": "^4.17.21",
+    "os": "^0.1.2",
+    "path": "^0.12.7",
+    "url": "^0.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.5.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.25.3",
+    "jest": "^27.4.5",
+    "nock": "^13.2.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {}
+  }
 }
