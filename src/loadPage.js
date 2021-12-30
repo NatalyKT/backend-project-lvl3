@@ -1,100 +1,88 @@
 import path from 'path';
 import axios from 'axios';
-import { promises as fsp } from 'fs';
+import {
+  promises as fsp,
+}
+  from 'fs';
 import cheerio from 'cheerio';
 import debug from 'debug';
 import Listr from 'listr';
 
-const axiosInstance = axios.create();
-const downloadResource = (fileUrl, filePath) => axiosInstance.get(fileUrl, { responseType: 'arraybuffer' })
-  .then((response) => fsp.writeFile(filePath, response.data));
-
-const specifyUrl = (url) => {
-  const { hostname, pathname } = url;
-  const words = `${hostname}${pathname}`.match(/\w+/g);
-  return words.join('-');
-};
-
-const specifyUrlOfResource = (url) => {
-  const { pathname } = url;
-  const { dir, name, ext } = path.parse(pathname);
-  const resourcePathname = path.join(dir, name);
-  const resourceUrl = new URL(resourcePathname, url.origin);
-  const slugifiedUrl = specifyUrl(resourceUrl);
-
-  return `${slugifiedUrl}${ext || '.html'}`;
-};
-
-const pageLoaderLog = debug('page-loader');
-
+const downloadResource = ({
+  href: fileUrl,
+  path: filePath,
+}, _outputPath) => axios.get(fileUrl, {
+  responseType: 'arraybuffer',
+}).then((response) => fsp.writeFile(path.resolve(_outputPath, filePath), response.data));
+const contentFileName = (url) => url.replace(/^\w*?:\/\//mi, '').replace(/\/$/, '').replace(/\W/mig, '-').concat('.html');
+const contentDirName = (url) => path.parse(contentFileName(url)).name.concat('_files');
+const mainHtmlFileName = (prefix, filePathName) => prefix.concat(filePathName.replace(/\//mig, '-')).concat(((path.extname(filePathName) === '') ? '.html' : ''));
 export default (inputUrl, outputPath = process.cwd()) => {
-  const inputUrlObj = new URL(inputUrl);
+  const log = 'page-loader';
+  const pageLoaderLog = debug(log);
+  debug('loading %o', log);
   pageLoaderLog('incoming url', inputUrl);
-  const specifiedUrl = specifyUrl(inputUrlObj);
-  const mainHtmlFileName = `${specifiedUrl}.html`;
-  const contentDirName = `${specifiedUrl}_files`;
-  const htmlFilePath = path.resolve(outputPath, mainHtmlFileName);
-  const contentDirPath = path.resolve(outputPath, contentDirName);
-  pageLoaderLog([specifiedUrl, htmlFilePath, contentDirPath]);
-
-  const tagsAttributes = {
-    link: 'href',
-    img: 'src',
-    script: 'src',
-  };
-
+  const specifiedUrl = contentFileName(inputUrl, '-');
+  const htmlFileName = contentDirName(inputUrl);
+  const htmlFilePath = path.resolve(outputPath, specifiedUrl);
+  const contentDirPath = path.resolve(outputPath, htmlFileName);
+  let pageData;
+  const tagsAttributes = [{
+    selector: 'link',
+    attr: 'href',
+  }, {
+    selector: 'img',
+    attr: 'src',
+  }, {
+    selector: 'script',
+    attr: 'src',
+  }];
   const extractResources = (data, dirName, localOrigin) => {
     const $ = cheerio.load(data);
     const resources = [];
-
-    Object.entries(tagsAttributes).forEach(([tag, attribute]) => {
-      $(tag).each((i, element) => {
-        const tagElement = $(element);
-        const attributeUrl = tagElement.attr(attribute);
-        const attributeObjUrl = new URL(attributeUrl, localOrigin);
-
-        if (attributeObjUrl.origin !== localOrigin) {
-          return;
-        }
-
-        const resourceUrl = attributeObjUrl.toString();
-        const resourceFileName = specifyUrlOfResource(attributeObjUrl);
-        const relativeFilePath = path.join(dirName, resourceFileName);
-        resources.push({ resourceUrl, resourceFileName });
-        tagElement.attr(attribute, `${relativeFilePath}`);
+    const {
+      hostname: resourceUrl,
+    } = new URL(localOrigin);
+    const prefixFile = resourceUrl.replace(/\./ig, '-');
+    const findAttributeObj = (item) => {
+      const tagElement = $(item.selector);
+      tagElement.each((i, element) => {
+        const link = $(element).attr(item.attr);
+        if (!link) return;
+        const {
+          href, hostname: hostName, pathname: resourcePathName,
+        } = new URL(link, localOrigin);
+        if (resourceUrl !== hostName) return;
+        const resourcePathname = path.join(dirName, mainHtmlFileName(prefixFile, resourcePathName));
+        resources.push({
+          href, path: resourcePathname,
+        });
+        $(element).attr(item.attr, resourcePathname);
       });
-    });
-
-    return [
-      $.html(),
-      resources,
-    ];
+    };
+    tagsAttributes.forEach(findAttributeObj);
+    return {
+      html: $.html(),
+      assets: resources,
+    };
   };
-
-  let pageData;
-  return axiosInstance.get(inputUrl)
-    .then((response) => {
-      pageData = extractResources(response.data, contentDirName, inputUrl);
-    })
-    .then(() => fsp.access(contentDirPath)
-      .catch(() => {
-        pageLoaderLog('creating a folder:', specifiedUrl);
-        return fsp.mkdir(contentDirPath);
-      }))
+  return axios.get(inputUrl).then((response) => {
+    pageData = extractResources(response.data, htmlFileName, inputUrl);
+  }).then(() => fsp.access(contentDirPath).catch(() => {
+    pageLoaderLog('Make a dir:', specifiedUrl);
+    return fsp.mkdir(contentDirPath);
+  })).then(() => {
+    pageLoaderLog('Save file:', htmlFilePath);
+    return fsp.writeFile(htmlFilePath, pageData.html, 'utf-8');
+  })
     .then(() => {
-      pageLoaderLog('save html:', htmlFilePath);
-      return fsp.writeFile(htmlFilePath, pageData, 'utf-8');
-    })
-    .then((resources) => {
-      const tasks = resources.map(({ resourceUrl, resourceFileName }) => ({
-        title: resourceUrl,
-        task: () => {
-          const filePath = path.join(contentDirPath, resourceFileName);
-          return downloadResource(resourceUrl, filePath);
-        },
-      }));
-      pageLoaderLog('tasks', tasks);
-      const list = new Listr(tasks, { concurrent: true });
+      const tasks = (resourceUrl) => ({
+        title: resourceUrl.href,
+        task: () => downloadResource(resourceUrl, outputPath),
+      });
+      const list = new Listr(pageData.assets.map(tasks), {
+        concurrent: true,
+      });
       return list.run();
     })
     .then(() => htmlFilePath);
