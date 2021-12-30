@@ -71,20 +71,19 @@ export default (inputUrl, outputPath = process.cwd()) => {
     ];
   };
 
+  let pageData;
   return axiosInstance.get(inputUrl)
-    .then((response) => fsp.access(contentDirPath)
-      .catch(() => fsp.mkdir(contentDirPath))
-      .then(() => response))
     .then((response) => {
-      pageLoaderLog('Response', response.status);
-      const [
-        modifiedHtml,
-        resources,
-      ] = extractResources(response.data, contentDirName, inputUrlObj.origin);
-
-      pageLoaderLog(resources);
-      return fsp.writeFile(htmlFilePath, modifiedHtml)
-        .then(() => resources);
+      pageData = extractResources(response.data, contentDirName, inputUrl);
+    })
+    .then(() => fsp.access(contentDirPath)
+      .catch(() => {
+        pageLoaderLog('creating a folder:', specifiedUrl);
+        return fsp.mkdir(contentDirPath);
+      }))
+    .then(() => {
+      pageLoaderLog('save html:', htmlFilePath);
+      return fsp.writeFile(htmlFilePath, pageData, 'utf-8');
     })
     .then((resources) => {
       const tasks = resources.map(({ resourceUrl, resourceFileName }) => ({
